@@ -124,12 +124,19 @@ def create_server(manifest_path: Path, run: Path, host='127.0.0.1', port=8765,
                 if path == '/api/comparison-export':
                     import io
                     import zipfile
+                    from .comparison import markdown_report
                     buffer = io.BytesIO()
                     with zipfile.ZipFile(buffer, 'w', zipfile.ZIP_DEFLATED) as archive:
                         for file in directory.iterdir():
                             if file.is_file() and file.suffix in ('.json', '.jsonl', '.md'):
-                                archive.writestr(file.name, file.read_bytes())
-                        archive.writestr('manifest.json', comparison['manifest_path'].read_bytes())
+                                target = file.name if file.name == 'provenance-correction.json' else 'original/' + file.name
+                                archive.writestr(target, file.read_bytes())
+                        archive.writestr('original/manifest.json', comparison['manifest_path'].read_bytes())
+                        archive.writestr('comparison-view.json', json.dumps(comparison['report'], indent=2))
+                        archive.writestr('summary.md', markdown_report(comparison['report']))
+                        archive.writestr('READ-FIRST.txt', 'summary.md and comparison-view.json contain the current verified interpretation. '
+                                         'Original frozen files are preserved under original/. '
+                                         'A provenance correction changes descriptive limitations, never measurements.\n')
                     return self.respond(buffer.getvalue(), 'application/zip', attachment='visionproof-' + directory.name + '.zip')
                 data = load_manifest(comparison['manifest_path'])
                 row = {r['id']: r for r in data['records'] if r['split'] == 'test'}[query.get('id', [''])[0]]

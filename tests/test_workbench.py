@@ -158,6 +158,27 @@ def test_public_replay_exports_only_static_sanitized_routes(qualified, tmp_path)
     assert 'public-config.js' in (out / 'index.html').read_text()
 
 
+def test_comparison_download_leads_with_corrected_scope(http_server, qualified):
+    from opencv_deploy_proof.comparison import compare, signed
+    base, _ = http_server
+    root, manifest = qualified
+    directory = root / 'download-scope'
+    original = compare(manifest, {'baseline': {}, 'candidate': {}}, directory, rounds=3, repeats=3)
+    contract = json.loads((directory / 'comparison-contract.json').read_text())
+    correction = signed({'original_report_sha256': original['sha256'],
+                         'original_contract_sha256': contract['sha256'],
+                         'manifest_sha256': contract['manifest_sha256'],
+                         'corrected_limitations': ['Boards had earlier calibration exposure.']})
+    (directory / 'provenance-correction.json').write_text(json.dumps(correction))
+    with urllib.request.urlopen(base + '/api/comparison-export?comparison=download-scope') as response:
+        with zipfile.ZipFile(io.BytesIO(response.read())) as archive:
+            assert 'earlier calibration exposure' in archive.read('summary.md').decode()
+            assert json.loads(archive.read('original/comparison.json')) == original
+            view = json.loads(archive.read('comparison-view.json'))
+            assert view['rows'] == original['rows']
+            assert view['provenance_correction'] == correction
+
+
 def test_rehashed_verdict_cannot_point_to_a_different_selection(qualified, tmp_path):
     import shutil
     root, path = qualified
