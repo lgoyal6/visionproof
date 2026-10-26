@@ -1,0 +1,505 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <meta name="theme-color" content="#193348" />
+    <title>VisionProof | OpenCV qualification workbench</title>
+    <link rel="stylesheet" href="/app.css" />
+    <script defer src="/app.js"></script>
+  </head>
+  <body>
+    <header class="topbar">
+      <a class="brand" href="/"
+        ><svg viewBox="0 0 32 32" aria-hidden="true">
+          <path d="M3 11V3h8M21 3h8v8M29 21v8h-8M11 29H3v-8" />
+          <circle cx="16" cy="16" r="7" />
+          <path d="m13 16 2 2 5-5" /></svg
+        ><strong>VisionProof</strong><span>Inspection workbench</span></a
+      >
+      <div class="top-actions">
+        <span class="connection"><i></i>Local runtime</span
+        ><button id="guide-toggle" class="quiet">Guided demo</button
+        ><button id="new-run" class="light">New qualification</button>
+      </div>
+    </header>
+    <div id="notice" class="notice" role="alert" hidden></div>
+    <div class="workspace">
+      <aside class="sidebar">
+        <div class="sidebar-title">
+          <h2>Qualifications</h2>
+          <button id="refresh" class="icon" aria-label="Refresh qualifications">
+            ↻
+          </button>
+        </div>
+        <p class="side-intro">Every decision leaves evidence.</p>
+        <div id="run-list" aria-label="Saved qualification runs"></div>
+        <div class="side-note">
+          <span class="tiny-symbol">◇</span>
+          <h3>The evaluator decides.</h3>
+          <p>
+            Models propose changes. Recall, precision and latency gates control
+            promotion.
+          </p>
+          <p>Historical failures stay visible.</p>
+        </div>
+        <a
+          class="source-link"
+          href="https://github.com/tangsanli5201/DeepPCB"
+          target="_blank"
+          rel="noreferrer"
+          >Dataset: DeepPCB</a
+        >
+      </aside>
+      <main>
+        <div id="loading" class="loading">
+          Verifying measurements and loading the workbench…
+        </div>
+        <div id="app" hidden>
+          <section id="guide" class="guide" hidden>
+            <div>
+              <span>Recorded walkthrough</span
+              ><strong id="guide-title"></strong>
+              <p id="guide-text"></p>
+            </div>
+            <div class="guide-actions">
+              <span id="guide-count"></span><button id="guide-next">Next</button
+              ><button
+                id="guide-close"
+                class="icon"
+                aria-label="Close guided demo"
+              >
+                ×
+              </button>
+            </div>
+          </section>
+          <div class="page-heading">
+            <div>
+              <div class="breadcrumb" id="pipeline-title">
+                OpenCV pipeline / PCB defect localization
+              </div>
+              <h1>Faster can mean blind.</h1>
+              <p>
+                See what an optimization stopped detecting. Block changes that
+                violate the quality contract.
+              </p>
+            </div>
+            <div id="run-status" class="qualification-status"></div>
+          </div>
+          <div class="run-strip">
+            <div>
+              <span class="status-dot"></span><strong id="run-title"></strong
+              ><span id="run-subtitle"></span>
+            </div>
+            <a id="download" class="export-link" href="#"
+              >Export qualification ↓</a
+            >
+          </div>
+          <nav class="tabs" aria-label="Workbench views">
+            <button data-tab="inspection" aria-selected="true">
+              Inspection</button
+            ><button data-tab="experiments" aria-selected="false">
+              Experiments <span id="experiment-count"></span></button
+            ><button data-tab="deployment" aria-selected="false">
+              AWS comparison</button
+            ><button data-tab="report" aria-selected="false">
+              Qualification report</button
+            ><button data-tab="replication" aria-selected="false">
+              CI &amp; replication
+            </button>
+          </nav>
+          <section id="inspection" class="tab-panel">
+            <div class="inspection-toolbar">
+              <div>
+                <label for="board">Test image</label
+                ><select id="board"></select
+                ><button
+                  id="previous-board"
+                  class="icon"
+                  aria-label="Previous image"
+                >
+                  ‹</button
+                ><button id="next-board" class="icon" aria-label="Next image">
+                  ›
+                </button>
+              </div>
+              <div class="toggles">
+                <label
+                  ><input id="show-predictions" type="checkbox" checked />
+                  Predictions</label
+                ><label
+                  ><input id="show-labels" type="checkbox" checked /> Ground
+                  truth</label
+                ><label><input id="template" type="checkbox" /> Template</label>
+              </div>
+            </div>
+            <div class="inspection-layout">
+              <div class="image-workspace">
+                <div class="comparison-grid">
+                  <figure>
+                    <figcaption>
+                      <div>
+                        <span class="pane-mark original"></span
+                        ><strong>Baseline</strong>
+                      </div>
+                      <span id="baseline-image-score"></span>
+                    </figcaption>
+                    <div class="canvas-wrap">
+                      <canvas
+                        id="baseline-canvas"
+                        width="640"
+                        height="640"
+                        aria-label="Baseline defect detections"
+                        tabindex="0"
+                      ></canvas>
+                    </div>
+                    <div class="image-footer">
+                      <span>Original configuration</span
+                      ><span id="baseline-batch"></span>
+                    </div>
+                  </figure>
+                  <figure>
+                    <figcaption>
+                      <div>
+                        <span class="pane-mark qualified"></span
+                        ><strong>Selected candidate</strong>
+                      </div>
+                      <span id="selected-image-score"></span>
+                    </figcaption>
+                    <div class="canvas-wrap">
+                      <canvas
+                        id="selected-canvas"
+                        width="640"
+                        height="640"
+                        aria-label="Selected candidate detections. Click a defect to inspect it."
+                        tabindex="0"
+                      ></canvas>
+                    </div>
+                    <div class="image-footer">
+                      <span id="selected-config-label"></span
+                      ><span id="selected-batch"></span>
+                    </div>
+                  </figure>
+                </div>
+                <div class="legend">
+                  <span><i class="outline teal"></i>Matched annotation</span
+                  ><span><i class="outline coral"></i>Missed annotation</span
+                  ><span><i class="outline amber"></i>Predicted box</span
+                  ><small
+                    >Click an annotation in either image to inspect its
+                    crop.</small
+                  >
+                </div>
+                <section class="inference-strip">
+                  <div>
+                    <strong>Run this image again</strong>
+                    <p>Execute the frozen OpenCV pipeline locally.</p>
+                  </div>
+                  <button id="infer" class="primary">Run inference</button
+                  ><output id="inference-result" aria-live="polite"
+                    >Ready for a fresh measurement.</output
+                  >
+                </section>
+              </div>
+              <aside class="evidence-inspector">
+                <div class="inspector-heading">
+                  <h2>Quality contract</h2>
+                  <span id="gate-badge" class="badge"></span>
+                </div>
+                <p class="muted">
+                  Fixed before search. Speed cannot override a quality failure.
+                </p>
+                <div id="gate-checks"></div>
+                <div class="inspector-divider"></div>
+                <h3>Measured outcome</h3>
+                <div id="outcome"></div>
+                <div class="inspector-divider"></div>
+                <h3>Detection microscope</h3>
+                <canvas
+                  id="crop"
+                  width="240"
+                  height="150"
+                  aria-label="Selected defect crop"
+                ></canvas>
+                <p id="crop-caption" class="muted">
+                  Select an annotation in either image.
+                </p>
+                <p class="fine-print">
+                  Relative benchmark qualification. This does not certify
+                  deployment accuracy.
+                </p>
+              </aside>
+            </div>
+          </section>
+          <section id="experiments" class="tab-panel" hidden>
+            <div class="section-heading">
+              <div>
+                <h2>The search, including its mistakes.</h2>
+                <p>
+                  Development evidence only. Test results are opened after the
+                  selection is frozen.
+                </p>
+              </div>
+              <span class="badge neutral" id="provider-label"></span>
+            </div>
+            <div class="experiment-grid">
+              <div>
+                <div class="chart-panel">
+                  <div class="panel-heading">
+                    <h3>Quality versus throughput</h3>
+                    <span>Development images</span>
+                  </div>
+                  <svg
+                    id="tradeoff"
+                    viewBox="0 0 760 260"
+                    role="img"
+                    aria-label="Scatterplot of candidate recall versus throughput"
+                  ></svg>
+                  <p class="chart-note">
+                    Dashed line: minimum acceptable recall. Rejected candidates
+                    may also fail precision or p95.
+                  </p>
+                </div>
+                <div id="experiment-list" class="experiment-list"></div>
+              </div>
+              <aside id="experiment-detail" class="detail-panel"></aside>
+            </div>
+          </section>
+          <section id="deployment" class="tab-panel" hidden>
+            <div class="section-heading">
+              <div>
+                <h2>AWS, measured on real workers.</h2>
+                <p>
+                  Recorded cloud benchmarks of the earlier rules-selected
+                  configuration.
+                </p>
+              </div>
+              <span class="badge neutral">Recorded AWS evidence</span>
+            </div>
+            <div id="cloud-empty" hidden>
+              No cloud measurements are registered. Run the cloud benchmark CLI
+              to add evidence.
+            </div>
+            <div id="cloud-content">
+              <div id="cloud-bars" class="cloud-bars"></div>
+              <div class="table-scroll">
+                <table id="cloud-table">
+                  <thead>
+                    <tr>
+                      <th>Runtime</th>
+                      <th>Instance</th>
+                      <th>OpenCV / NumPy</th>
+                      <th>Batch median</th>
+                      <th>Recall / precision</th>
+                      <th>Compute rate</th>
+                      <th>Gate</th>
+                    </tr>
+                  </thead>
+                  <tbody></tbody>
+                </table>
+              </div>
+              <section class="cloud-context">
+                <div>
+                  <h3>What this comparison can support</h3>
+                  <p id="cloud-takeaway"></p>
+                  <ul id="cloud-limits"></ul>
+                </div>
+                <div>
+                  <h3>Resource cleanup</h3>
+                  <div id="cleanup"></div>
+                  <p class="fine-print">
+                    Recorded verification, not a live AWS monitor.
+                    Infrastructure usage can appear in billing later.
+                  </p>
+                </div>
+              </section>
+            </div>
+          </section>
+          <section id="report" class="tab-panel" hidden>
+            <div class="section-heading">
+              <div>
+                <h2>The receipt for this decision.</h2>
+                <p>
+                  Configuration, quality, provenance and known limits in one
+                  portable bundle.
+                </p>
+              </div>
+              <a id="download-report" class="button primary" href="#"
+                >Download bundle</a
+              >
+            </div>
+            <div class="report-grid">
+              <section class="report-card">
+                <h3>Frozen configuration</h3>
+                <pre id="config-json"></pre>
+                <p>
+                  Selected using development measurements before test
+                  evaluation.
+                </p>
+                <h3>Test results</h3>
+                <div id="report-metrics"></div>
+              </section>
+              <section class="report-card">
+                <h3>Reproducibility</h3>
+                <dl id="provenance"></dl>
+                <h3>Evidence boundary</h3>
+                <ul id="limitations"></ul>
+              </section>
+            </div>
+            <div class="journal-panel">
+              <div class="panel-heading">
+                <h3>Verified event journal</h3>
+                <span id="journal-label"></span>
+              </div>
+              <ol id="journal"></ol>
+            </div>
+          </section>
+          <section id="replication" class="tab-panel" hidden>
+            <div class="section-heading">
+              <div>
+                <h2>Catch the regression before it ships.</h2>
+                <p>
+                  Frozen configurations, randomized timing blocks, and the
+                  detections a faster change would lose.
+                </p>
+              </div>
+              <a id="comparison-download" class="button primary" hidden
+                >Download study</a
+              >
+            </div>
+            <label for="comparison-study">Recorded study</label>
+            <select id="comparison-study"></select>
+            <p id="comparison-scope" class="muted"></p>
+            <div id="comparison-empty" hidden>
+              No replication is registered. Use the check or compare command to
+              record one.
+            </div>
+            <div id="comparison-content" hidden>
+              <div class="chart-panel">
+                <div class="panel-heading">
+                  <h3>Paired speedup and uncertainty</h3>
+                  <span>95% bootstrap intervals across measurement blocks</span>
+                </div>
+                <svg
+                  id="comparison-plot"
+                  viewBox="0 0 800 230"
+                  role="img"
+                  aria-label="Configuration speedup with uncertainty intervals"
+                ></svg>
+                <p id="comparison-pairwise" class="chart-note"></p>
+              </div>
+              <div class="table-scroll">
+                <table id="comparison-table">
+                  <thead>
+                    <tr>
+                      <th>Configuration</th>
+                      <th>Gate</th>
+                      <th>Recall</th>
+                      <th>Precision</th>
+                      <th>Batch median</th>
+                      <th>Lost / recovered</th>
+                    </tr>
+                  </thead>
+                  <tbody></tbody>
+                </table>
+              </div>
+              <div class="report-grid">
+                <section class="report-card">
+                  <h3>Inspect the evidence</h3>
+                  <label for="comparison-candidate">Configuration</label
+                  ><select id="comparison-candidate"></select>
+                  <p id="comparison-checks"></p>
+                  <canvas
+                    id="comparison-image"
+                    width="640"
+                    height="420"
+                    aria-label="Candidate predictions and missed annotations"
+                  ></canvas>
+                  <p id="comparison-caption" class="muted"></p>
+                  <div id="comparison-groups"></div>
+                </section>
+                <section class="report-card">
+                  <h3>Use it in your build</h3>
+                  <p>
+                    The command exits 2 when a bounded configuration fails
+                    recall, precision or latency. Invalid input exits 3. Reports
+                    attach to the GitHub Actions job, including failures.
+                  </p>
+                  <pre id="ci-command"></pre>
+                  <p class="fine-print">
+                    The included workflow compares configuration changes using
+                    the current detector implementation. It does not compare
+                    arbitrary source revisions or enforce branch protection.
+                  </p>
+                  <h3>What this study supports</h3>
+                  <ul id="comparison-limits"></ul>
+                </section>
+              </div>
+            </div>
+          </section>
+          <footer>
+            VisionProof <span>OpenCV 5 and AWS</span
+            ><span>Two OpenCV pipelines with a shared quality contract.</span
+            ><a href="/api/evidence" id="raw-evidence">Raw evidence</a>
+          </footer>
+        </div>
+      </main>
+    </div>
+    <dialog id="qualification-dialog">
+      <form id="qualification-form">
+        <div class="dialog-heading">
+          <h2>Run a qualification</h2>
+          <button
+            type="button"
+            id="close-dialog"
+            class="icon"
+            aria-label="Close qualification dialog"
+          >
+            ×
+          </button>
+        </div>
+        <p>
+          Run fresh measurements on the declared local dataset. Each method gets
+          the same candidate budget.
+        </p>
+        <label for="provider">Experiment planner</label
+        ><select id="provider">
+          <option value="rules">
+            Deterministic control, local compute only
+          </option>
+          <option value="bedrock">
+            Amazon Bedrock agent, metered API usage
+          </option></select
+        ><label for="budget">Candidates per method</label
+        ><select id="budget">
+          <option value="4">4 candidates</option>
+          <option value="2">2 candidates</option>
+          <option value="1">1 candidate</option>
+        </select>
+        <div class="dialog-note">
+          This reruns an existing protocol. It is repeated validation, not a new
+          untouched test set. Cloud workers are not launched.
+        </div>
+        <button type="submit" id="start-job" class="primary">
+          Start qualification
+        </button>
+      </form>
+    </dialog>
+    <section id="job-panel" class="job-panel" hidden aria-live="polite">
+      <div>
+        <span class="spinner"></span
+        ><strong id="job-heading">Qualification running</strong
+        ><button
+          class="icon"
+          id="hide-job"
+          aria-label="Hide qualification progress"
+        >
+          ×
+        </button>
+      </div>
+      <p id="job-status">Creating the experiment contract…</p>
+      <ol id="job-events"></ol>
+      <button id="open-job" class="primary" hidden>Open result</button>
+    </section>
+  </body>
+</html>
