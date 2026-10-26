@@ -3,6 +3,14 @@
 **Faster can mean blind.** Inspect the detections an optimization loses, then block changes
 that violate the quality contract. Solo project by Laksh Goyal.
 
+[Public measured replay](https://visionproof.vercel.app/) ·
+[Architecture and 2:55 demo video](https://visionproof.vercel.app/about.html) ·
+[GitHub Actions](https://github.com/lgoyal6/visionproof/actions)
+
+The public endpoint is a read-only replay with illustrative image samples. It does not run
+inference or qualification jobs. The local app below runs both. Use **Guided demo** to inspect
+the recorded change that lost 559 baseline detections, then the passing change that retained them.
+
 An OpenCV qualification workbench for developers who need faster image processing without
 silently losing detections. An experiment planner proposes bounded changes to a PCB inspection
 pipeline. An independent evaluator checks recall, precision and warm batch latency before a
@@ -173,7 +181,7 @@ The private artifacts live outside the repository; a fresh clone produces its ow
 | Frozen Bedrock selection versus fixed sweep on reserved boards | 1.07x median paired speedup, interval 0.81-1.67x includes parity. Sweep retained better recall and precision. No LLM search advantage established. |
 | Second pipeline, YOLOX on 48 Penn test images | Selected four-worker configuration preserved baseline TP138/FP41/FN1 and passed. Initial sequential measurement: 3.16x baseline. Deterministic controller, not an LLM result. |
 | YOLOX replication, five randomized blocks | Selected: 3.13x paired baseline speedup, interval 2.53-3.40x, identical detections. Smaller input: 3.33x but lost ten baseline detections and failed recall despite 94.8% precision. |
-| Local CI commands on reserved PCB images | Faster reduced-resolution change exited 2 and retained its failure report. Four-worker change exited 0. Remote Actions execution remains pending publication. |
+| Local CI commands on calibration-exposed PCB boards | Faster reduced-resolution change exited 2 and retained its failure report. Four-worker change exited 0. See GitHub Actions for separately measured remote results. |
 | Earlier AWS c8g.large, pip OpenCV 5.0.0 | Selected configuration: 191.4 ms per 80-image warm batch. |
 | Earlier AWS c7i.large, pip OpenCV 5.0.0 | Same configuration: 201.6 ms per batch. |
 | AWS c8g.large, COOL OpenCV 5.1.0-dev | Same earlier configuration: 183.7 ms per batch; identical scored detections to pip. |
