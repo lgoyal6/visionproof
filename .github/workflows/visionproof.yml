@@ -1,0 +1,69 @@
+name: Vision regression gate
+
+on:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  qualify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        pipeline: [pcb, pedestrians]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: astral-sh/setup-uv@v6
+        with:
+          version: "0.13.5"
+      - run: uv sync --frozen --extra test --extra cloud --python 3.12
+      - run: uv run pytest -q
+      - name: Prepare the public benchmark
+        env:
+          PIPELINE: ${{ matrix.pipeline }}
+        run: |
+          if [ "$PIPELINE" = pcb ]; then
+            uv run vision-proof prepare --data "$RUNNER_TEMP/visionproof-data" --limit 48
+          else
+            uv run vision-proof prepare-pedestrians --data "$RUNNER_TEMP/visionproof-data" --limit 48
+          fi
+      - name: Read the baseline configuration from the PR base
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          PIPELINE: ${{ matrix.pipeline }}
+        run: |
+          if [ -n "$BASE_SHA" ] && git cat-file -e "$BASE_SHA:configs/$PIPELINE.json"; then
+            git show "$BASE_SHA:configs/$PIPELINE.json" > "$RUNNER_TEMP/visionproof-baseline.json"
+          else
+            python -c 'from pathlib import Path; import os; Path(os.environ["RUNNER_TEMP"], "visionproof-baseline.json").write_text("{}")'
+          fi
+      - name: Qualify the proposed configuration
+        env:
+          PIPELINE: ${{ matrix.pipeline }}
+        run: |
+          uv run vision-proof check \
+            --manifest "$RUNNER_TEMP/visionproof-data/manifest.json" \
+            --baseline-config "$RUNNER_TEMP/visionproof-baseline.json" \
+            --candidate-config "configs/$PIPELINE.json" \
+            --rounds 5 --repeats 5 --seed 1729 \
+            --out "$RUNNER_TEMP/visionproof-report"
+      - name: Attach the qualification summary
+        if: always()
+        run: |
+          if [ -f "$RUNNER_TEMP/visionproof-report/summary.md" ]; then
+            cat "$RUNNER_TEMP/visionproof-report/summary.md" >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo 'VisionProof did not produce a qualification. Check the failed step; no pass is implied.' >> "$GITHUB_STEP_SUMMARY"
+          fi
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: visionproof-${{ matrix.pipeline }}
+          path: ${{ runner.temp }}/visionproof-report
+          if-no-files-found: warn

@@ -1,0 +1,9 @@
+{
+  "scale": 1.0,
+  "registration_scale": 1.0,
+  "threshold": 128,
+  "min_area": 9,
+  "open_kernel": 3,
+  "workers": 4,
+  "threads": 1
+}
