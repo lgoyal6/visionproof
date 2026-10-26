@@ -24,7 +24,7 @@ Use Python 3.12 and [uv](https://docs.astral.sh/uv/):
 
 ```sh
 uv sync --frozen --extra test
-uv run pytest -q
+uv run python -m pytest -q
 ./scripts/demo.sh
 ```
 

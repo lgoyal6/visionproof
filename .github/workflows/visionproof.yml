@@ -23,7 +23,7 @@ jobs:
         with:
           version: "0.13.5"
       - run: uv sync --frozen --extra test --extra cloud --python 3.12
-      - run: uv run pytest -q
+      - run: uv run python -m pytest -q
       - name: Prepare the public benchmark
         env:
           PIPELINE: ${{ matrix.pipeline }}
