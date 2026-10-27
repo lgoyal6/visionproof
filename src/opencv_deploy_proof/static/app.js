@@ -1291,16 +1291,17 @@ $("qualification-form").addEventListener("submit", async (e) => {
 });
 if (publicDemo) {
   document.querySelector(".connection").textContent = "Read-only replay";
+  $("guide-toggle").hidden = true;
   $("new-run").disabled = true;
-  $("new-run").textContent = "Local jobs only";
+  $("new-run").hidden = true;
   $("infer").disabled = true;
-  $("infer").textContent = "Local inference only";
+  document.querySelector(".inference-strip").hidden = true;
   $("download").textContent = "Summary JSON";
-  $("download-report").textContent = "Download sanitized summary";
+  $("download-report").textContent = "Download results";
   $("comparison-download").textContent = "Download study summary";
-  $("raw-evidence").textContent = "Sanitized verdict";
-  const banner = node("p", "Public replay of measured runs. Images are illustrative samples; metrics use the full recorded sets. Source digests refer to original private evidence, not this sanitized view. Fresh inference and qualification require the local app. ", "notice");
-  const about = node("a", "Architecture, video and source");
+  $("raw-evidence").textContent = "Result details";
+  const banner = node("p", "Recorded results. Live evaluation runs in the local app. ", "notice");
+  const about = node("a", "Architecture and results");
   about.href = "/about.html";
   banner.append(about);
   document.querySelector(".topbar").after(banner);
