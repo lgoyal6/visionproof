@@ -7,6 +7,7 @@
     <title>VisionProof | OpenCV qualification workbench</title>
     <link rel="stylesheet" href="/app.css" />
     <script defer src="/app.js"></script>
+    <script defer src="/lab.js"></script>
   </head>
   <body>
     <header class="topbar">
@@ -104,6 +105,8 @@
               Qualification report</button
             ><button data-tab="replication" aria-selected="false">
               CI &amp; replication
+            </button><button id="live-tab" data-tab="live" aria-selected="false">
+              Live comparison
             </button>
           </nav>
           <section id="inspection" class="tab-panel">
@@ -433,6 +436,44 @@
                   <ul id="comparison-limits"></ul>
                 </section>
               </div>
+            </div>
+          </section>
+          <section id="live" class="tab-panel" hidden>
+            <div class="section-heading"><div><h2>Compare two configurations</h2><p>Run the pedestrian detector on the same image with different settings.</p></div></div>
+            <p id="lab-error" class="notice" role="alert" hidden></p>
+            <div class="lab-source-row">
+              <label>Image source<select id="lab-source"><option value="dataset">Labeled images</option><option value="upload">Upload an image</option><option value="camera">Webcam</option></select></label>
+              <label id="lab-dataset-label">Dataset<select id="lab-dataset"></select></label>
+              <label id="lab-image-label">Image<select id="lab-image"></select></label>
+              <label id="lab-upload-label" hidden>PNG or JPEG<input id="lab-upload" type="file" accept="image/png,image/jpeg"></label>
+              <label id="lab-device-label" hidden>Camera<select id="lab-device"><option value="">Default camera</option></select></label>
+            </div>
+            <div class="lab-actions"><button id="lab-compare" class="primary">Compare image</button><button id="lab-camera-start" class="primary" hidden>Start camera</button><button id="lab-camera-stop" hidden>Stop camera</button><span id="lab-status" role="status">Choose an image.</span></div>
+            <video id="lab-video" autoplay muted playsinline hidden></video>
+            <div class="lab-pair">
+              <section class="lab-config"><h3>Baseline</h3><div class="lab-config-fields">
+                <label>Input size<select id="lab-base-size"><option>160</option><option>224</option><option selected>320</option><option>416</option></select></label>
+                <label>Confidence<select id="lab-base-confidence"><option>0.2</option><option selected>0.3</option><option>0.5</option><option>0.7</option></select></label>
+                <label>Batch workers<select id="lab-base-workers"><option>1</option><option>2</option><option>4</option></select></label>
+              </div><canvas id="lab-base-canvas" aria-label="Baseline detections"></canvas><p id="lab-base-score">No measurement yet.</p></section>
+              <section class="lab-config"><h3>Candidate</h3><div class="lab-config-fields">
+                <label>Input size<select id="lab-candidate-size"><option selected>160</option><option>224</option><option>320</option><option>416</option></select></label>
+                <label>Confidence<select id="lab-candidate-confidence"><option>0.2</option><option selected>0.3</option><option>0.5</option><option>0.7</option></select></label>
+                <label>Batch workers<select id="lab-candidate-workers"><option>1</option><option>2</option><option>4</option></select></label>
+              </div><canvas id="lab-candidate-canvas" aria-label="Candidate detections"></canvas><p id="lab-candidate-score">No measurement yet.</p></section>
+            </div>
+            <p id="lab-delta" class="lab-result" aria-live="polite">Labels are required to measure accuracy.</p>
+            <p class="fine-print">Image times are single warm measurements. Batch workers affect full dataset evaluations. Webcam and unlabeled uploads show prediction differences, not accuracy.</p>
+            <div class="lab-bottom">
+              <section class="report-card"><h3>Import a labeled dataset</h3><p>Upload a ZIP with images and a root-level annotations.json in COCO format. Use the category name person and [x, y, width, height] boxes.</p>
+                <label>Dataset name<input id="lab-import-name" maxlength="80" value="My pedestrian test set"></label>
+                <label>Dataset ZIP<input id="lab-import-file" type="file" accept=".zip,application/zip"></label>
+                <button id="lab-import">Import dataset</button><p id="lab-import-status" role="status">Up to 64 images, 32 MiB ZIP, 4 megapixels per image. Data stays on this computer.</p>
+              </section>
+              <section class="report-card"><h3>Evaluate the full dataset</h3><p>Freeze these two configurations, then measure accuracy and warm batch timing across three randomized blocks.</p>
+                <div class="lab-config-fields"><label>Max recall drop (pp)<input id="lab-recall" type="number" value="2" min="0" max="20" step="0.1"></label><label>Max precision drop (pp)<input id="lab-precision" type="number" value="2" min="0" max="20" step="0.1"></label><label>Max latency increase (%)<input id="lab-latency" type="number" value="25" min="0" max="100" step="1"></label></div>
+                <button id="lab-evaluate" class="primary">Evaluate dataset</button><p id="lab-evaluation-status" role="status">Choose a labeled dataset.</p><div id="lab-evaluation-result"></div><a id="lab-download" class="button" hidden>Download evaluation</a>
+              </section>
             </div>
           </section>
           <footer>

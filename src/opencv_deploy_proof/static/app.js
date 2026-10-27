@@ -105,7 +105,9 @@ async function loadRun(id) {
     .forEach((x) => x.classList.toggle("active", x.dataset.run === id));
   $("run-title").textContent = nameOf(data);
   $("pipeline-title").textContent =
-    data.pipeline === "pedestrian-yolox"
+    state.tab === "live"
+      ? "OpenCV pipeline / Pedestrian comparison"
+      : data.pipeline === "pedestrian-yolox"
       ? "OpenCV pipeline / Pedestrian localization"
       : "OpenCV pipeline / PCB defect localization";
   const datasetLink = document.querySelector(".source-link");
@@ -358,6 +360,13 @@ function showCrop(index, variant = "selected") {
 }
 function setTab(tab, load = true) {
   state.tab = tab;
+  document.querySelector(".run-strip").hidden = tab === "live";
+  $("run-status").hidden = tab === "live";
+  $("raw-evidence").hidden = tab === "live";
+  $("new-run").hidden = Boolean(publicDemo) || tab === "live";
+  $("pipeline-title").textContent = tab === "live" ? "OpenCV pipeline / Pedestrian comparison"
+    : state.run?.pipeline === "pedestrian-yolox" ? "OpenCV pipeline / Pedestrian localization"
+    : "OpenCV pipeline / PCB defect localization";
   document
     .querySelectorAll(".tab-panel")
     .forEach((x) => (x.hidden = x.id !== tab));
@@ -368,6 +377,7 @@ function setTab(tab, load = true) {
     );
   if (tab === "deployment") loadCloud().catch(showError);
   if (tab === "replication" && load) loadComparisons().catch(showError);
+  document.dispatchEvent(new CustomEvent("visionproof:tab", { detail: tab }));
 }
 function renderExperiments() {
   const r = state.run,
@@ -652,6 +662,8 @@ function drawChart() {
   });
 }
 function studyName(study) {
+  if (study.id.startsWith("live-check-"))
+    return "Local dataset check / " + study.id.slice(-6);
   if (study.id.startsWith("ci-pcb-blocked"))
     return "PCB: a faster change blocked by CI";
   if (study.id.startsWith("ci-pcb-passed"))
@@ -1306,7 +1318,9 @@ if (publicDemo) {
   banner.append(about);
   document.querySelector(".topbar").after(banner);
 }
-loadCatalog().catch((error) => {
+loadCatalog().then(() => {
+  if (!publicDemo && location.hash === "#live") setTab("live");
+}).catch((error) => {
   $("loading").textContent =
     "The workbench could not load verified evidence. " + error.message;
   showError(error);
