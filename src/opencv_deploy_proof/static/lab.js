@@ -9,6 +9,26 @@
   let stream = null, cameraGeneration = 0, imageGeneration = 0, timer = null, pending = null;
   const number = (value) => Number(value).toFixed(1);
   function message(text) { el("lab-status").textContent = text; }
+  function sourceBadge() {
+    el("lab-source-badge").textContent = el("lab-source").value === "camera"
+      ? stream ? "Live webcam" : "Webcam stopped"
+      : el("lab-source").value === "dataset" ? "Labeled images" : "Unlabeled image";
+  }
+  function presentation(enabled) {
+    document.body.classList.toggle("presentation-view", enabled);
+    el("lab-presentation").setAttribute("aria-pressed", String(enabled));
+    el("lab-presentation").textContent = enabled ? "Exit presentation" : "Presentation view";
+  }
+  function measurements(prefix, result) {
+    el(prefix + "-summary").textContent = `${result?.config.input_size || config(prefix).input_size} px input`;
+    el(prefix + "-time").textContent = result ? `${number(result.warm_image_ms)} ms` : "Pending";
+    el(prefix + "-count").textContent = result ? String(result.boxes.length) : "Pending";
+    el(prefix + "-score").textContent = result
+      ? result.quality
+        ? `${result.quality.tp} matched / ${result.quality.fn} missed / ${result.quality.fp} false positives`
+        : "No accuracy labels. Predictions only."
+      : "No measurement yet.";
+  }
   function evaluationControls(busy) {
     for (const id of ["lab-import", "lab-source", "lab-dataset", "lab-image", "lab-upload", "lab-compare",
       "lab-base-size", "lab-base-confidence", "lab-base-workers", "lab-candidate-size", "lab-candidate-confidence", "lab-candidate-workers",
@@ -66,16 +86,12 @@
       ctx.strokeStyle = missed.has(index) ? "#ff6b77" : "#52dec6";
       ctx.strokeRect(box[0], box[1], box[2] - box[0], box[3] - box[1]);
     });
-    el(prefix + "-score").textContent = result
-      ? `${result.config.input_size} px, confidence ${result.config.confidence}. ${result.boxes.length} predictions. ` +
-        (result.quality ? `${result.quality.tp} matched, ${result.quality.fn} missed, ${result.quality.fp} false positives. ` : "No accuracy labels. ") +
-        `${number(result.warm_image_ms)} ms warm inference.`
-      : "Ready to compare.";
+    measurements(prefix, result);
   }
   function clearPreview() {
     for (const prefix of ["lab-base", "lab-candidate"]) {
       const canvas = el(prefix + "-canvas"); canvas.getContext("2d").clearRect(0, 0, canvas.width, canvas.height);
-      el(prefix + "-score").textContent = "No measurement yet.";
+      measurements(prefix);
     }
     el("lab-delta").textContent = "Compare an image to inspect detection differences.";
   }
@@ -134,8 +150,9 @@
       if (generation !== undefined && generation !== cameraGeneration) return;
       if (generation === undefined && imageVersion !== imageGeneration) return;
       draw("lab-base", src, result.baseline, result.labels); draw("lab-candidate", src, result.candidate, result.labels);
+      const lost = result.delta.newly_missed_annotations?.length;
       el("lab-delta").textContent = result.labels !== null
-        ? `${result.delta.newly_missed_annotations.length} annotations detected by the baseline were missed by the candidate. Amber: predictions. Teal: matched labels. Red: missed labels.`
+        ? `Candidate missed ${lost} ${lost === 1 ? "annotation" : "annotations"} the baseline detected. Amber: predictions. Teal: matched labels. Red: missed labels.`
         : `${result.delta.baseline_only_predictions} baseline predictions have no matching candidate prediction. Without labels this is disagreement, not measured accuracy.`;
       message(stream ? "Camera comparison running. Frames are processed locally and not saved." : "Comparison complete. Dataset evaluation provides the full quality check.");
     } finally { pending = null; el("lab-compare").disabled = !currentImage || Boolean(activeJob); }
@@ -144,6 +161,7 @@
     cameraGeneration++; clearTimeout(timer); pending?.abort();
     if (stream) stream.getTracks().forEach((track) => track.stop());
     stream = null; el("lab-video").srcObject = null; el("lab-video").hidden = true;
+    sourceBadge();
     el("lab-camera-start").disabled = false; el("lab-camera-stop").disabled = true;
   }
   async function startCamera() {
@@ -158,6 +176,7 @@
         video: { width: { ideal: 1280 }, height: { ideal: 720 }, ...(device ? { deviceId: { exact: device } } : {}) } });
       if (generation !== cameraGeneration) { acquired.getTracks().forEach((track) => track.stop()); return; }
       stream = acquired; el("lab-video").srcObject = stream;
+      sourceBadge();
       stream.getVideoTracks().forEach((track) => track.addEventListener("ended", () => { stopCamera(); message("Camera disconnected."); }));
       el("lab-camera-stop").disabled = false; await el("lab-video").play();
       const selected = stream.getVideoTracks()[0].getSettings().deviceId;
@@ -184,6 +203,7 @@
     el("lab-compare").disabled = true;
     clearPreview();
     const source = el("lab-source").value;
+    sourceBadge();
     for (const id of ["lab-dataset-label", "lab-image-label"]) el(id).hidden = source !== "dataset";
     el("lab-upload-label").hidden = source !== "upload";
     el("lab-device-label").hidden = source !== "camera";
@@ -215,6 +235,7 @@
       if (job.status === "failed") throw new Error(job.error);
       const candidate = job.report.rows.find((r) => r.name === "candidate"), baseline = job.report.rows.find((r) => r.name === "baseline");
       el("lab-evaluation-status").textContent = candidate.gate.passed ? "Passed all dataset checks." : "Blocked by the dataset checks.";
+      el("lab-evaluation-status").className = "lab-verdict " + (candidate.gate.passed ? "passed" : "blocked");
       const host = el("lab-evaluation-result"); host.replaceChildren();
       const checks = Object.entries(candidate.gate.checks).map(([name, pass]) => `${name.replaceAll("_", " ")}: ${pass ? "passed" : "failed"}`).join("; ");
       for (const text of [`Evaluated baseline: ${baseline.config.input_size} px, ${baseline.config.workers} workers. Candidate: ${candidate.config.input_size} px, ${candidate.config.workers} workers.`, checks, `Recall: ${number(100 * candidate.quality.recall)}% (baseline ${number(100 * baseline.quality.recall)}%). Precision: ${number(100 * candidate.quality.precision)}%.`,
@@ -239,14 +260,20 @@
           max_recall_drop: Number(el("lab-recall").value) / 100, max_precision_drop: Number(el("lab-precision").value) / 100,
           max_p95_ratio: 1 + Number(el("lab-latency").value) / 100 } });
       activeJob = job.id; el("lab-evaluation-result").replaceChildren();
+      el("lab-evaluation-status").className = "lab-verdict";
       el("lab-evaluation-status").textContent = "Evaluating the frozen configurations. This may take several minutes.";
       pollEvaluation();
     } catch (e) { evaluationControls(false); throw e; }
   }
   const handle = (fn) => () => Promise.resolve().then(fn).catch((e) => { if (e.name !== "AbortError") error(e); });
   document.addEventListener("visionproof:tab", (event) => {
-    if (event.detail !== "live") { stopCamera(); return; }
+    if (event.detail !== "live") { presentation(false); stopCamera(); return; }
     if (!loaded) { loaded = true; refresh().catch((e) => { loaded = false; error(e); }); }
+  });
+  el("lab-presentation").onclick = () => presentation(!document.body.classList.contains("presentation-view"));
+  document.addEventListener("keydown", (event) => { if (event.key === "Escape") presentation(false); });
+  for (const id of ["lab-recall", "lab-precision", "lab-latency"]) el(id).addEventListener("input", () => {
+    el("lab-limits-summary").textContent = `Limits: ${el("lab-recall").value} pp recall drop, ${el("lab-precision").value} pp precision drop, ${el("lab-latency").value}% batch p95 increase.`;
   });
   el("lab-source").onchange = handle(sourceChanged); el("lab-dataset").onchange = handle(loadImages);
   el("lab-image").onchange = handle(loadImage);
@@ -271,6 +298,7 @@
   });
   for (const prefix of ["lab-base", "lab-candidate"]) for (const setting of ["size", "confidence", "workers"]) {
     el(prefix + "-" + setting).addEventListener("change", () => {
+      el(prefix + "-summary").textContent = `${config(prefix).input_size} px input`;
       if (stream) return;
       ++imageGeneration;
       el("lab-delta").textContent = "Settings changed. Compare again for new measurements.";

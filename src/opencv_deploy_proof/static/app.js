@@ -360,6 +360,8 @@ function showCrop(index, variant = "selected") {
 }
 function setTab(tab, load = true) {
   state.tab = tab;
+  document.body.classList.toggle("live-view", tab === "live");
+  if (tab !== "live") document.body.classList.remove("presentation-view");
   document.querySelector(".run-strip").hidden = tab === "live";
   $("run-status").hidden = tab === "live";
   $("raw-evidence").hidden = tab === "live";
