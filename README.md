@@ -57,6 +57,52 @@ page or viewing historical evidence never invokes a model.
 
 ## Reproduce individual stages
 
+### Live comparison, imported data and webcam
+
+In the **local app**, open **Live comparison**. Choose baseline and candidate input size,
+confidence and batch-worker settings. Compare one labeled image, upload an unlabeled PNG/JPEG,
+or start a webcam. Both configurations receive the same pixels. The model processes grayscale
+images; uploads and camera frames are normalized to a maximum 1280-pixel edge in the browser.
+Image timing is a warm single-image preview. Worker counts affect dataset batches, not a
+single-frame speed claim. The historical qualification badge is hidden in this view.
+
+This view requires an existing qualified `pedestrian-yolox` run under the server's evidence
+root. The pedestrian setup below downloads and pins the model. The original PCB adapter stays
+available in the existing inspection and qualification views.
+
+Use **Import dataset** for a ZIP containing `annotations.json` at the archive root and the image
+files it names. The supported COCO subset has one category named `person`, unique integer image
+and annotation IDs, exact image dimensions, and absolute pixel boxes `[x, y, width, height]`.
+Other declared categories are ignored. Crowd boxes are rejected because this scorer does not
+implement COCO crowd matching. Example `annotations.json`:
+
+```json
+{
+  "images": [{"id": 1, "file_name": "images/frame.png", "width": 640, "height": 480}],
+  "categories": [{"id": 1, "name": "person"}],
+  "annotations": [{"id": 1, "image_id": 1, "category_id": 1, "bbox": [100, 80, 50, 150]}]
+}
+```
+
+Imports accept 1-64 images, at least one person annotation, ZIPs up to 32 MiB, at most 64 MiB
+expanded, and at most 4 megapixels per image / 32 megapixels total. Unsafe paths, duplicate
+entries, invalid boxes and mismatched dimensions are rejected. Original ZIPs, normalized images,
+labels, model and hash-bound manifests stay under the private evidence root's `imports/` folder.
+Imported annotations are user assertions, not independently verified ground truth.
+
+**Evaluate dataset** freezes the two configurations and your recall, precision and latency
+limits before three randomized blocks of three timed batches. It uses the existing scorer
+(one-to-one matching at IoU > 0.33) and exports the frozen contract, raw blocks, current report
+and original inputs' manifest. Imported checks use a single test set with no search or new
+holdout claim. These private checks are excluded from public replay exports.
+
+**Webcam** uses the browser's camera picker, including a connected Logitech camera. It samples
+one frame at a time, runs both configurations, then requests the next frame. This is interactive
+comparison, not a promised video frame rate. No audio is requested and camera frames are not
+saved. Stop, changing source, leaving the tab, hiding the page and navigating away release the
+camera tracks. Camera permission denial is reported in the UI. Without annotations, uploads
+and webcam frames show prediction disagreement and processing time, with no accuracy verdict.
+
 ### CI regression gate
 
 ```sh
