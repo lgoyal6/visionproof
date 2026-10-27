@@ -1517,3 +1517,24 @@ dialog .primary {
   white-space: pre-wrap;
   overflow-wrap: anywhere;
 }
+.lab-source-row, .lab-actions, .lab-config-fields { display: flex; align-items: end; gap: 12px; flex-wrap: wrap; }
+.lab-source-row { padding: 16px 0; border-bottom: 1px solid var(--line); }
+.lab-source-row label, .lab-config-fields label, .lab-bottom label { display: flex; flex-direction: column; gap: 7px; min-width: 0; font-size: 12px; color: var(--muted); }
+.lab-source-row label { flex: 1; min-width: 150px; }
+.lab-source-row select, .lab-source-row input, .lab-config-fields select, .lab-config-fields input, .lab-bottom input { width: 100%; min-width: 0; padding: 9px; border: 1px solid var(--line); border-radius: 5px; background: white; color: var(--ink); }
+.lab-actions { align-items: center; padding: 16px 0; }
+#lab-status { color: var(--muted); font-size: 12px; }
+.lab-pair, .lab-bottom { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px; }
+.lab-config { background: white; border: 1px solid var(--line); padding: 18px; border-radius: 7px; min-width: 0; }
+.lab-config h3 { margin: 0 0 14px; }
+.lab-config-fields { margin-bottom: 14px; align-items: start; }
+.lab-config-fields label { flex: 1; }
+.lab-config canvas { display: block; width: 100%; max-height: 470px; object-fit: contain; background: var(--deep); min-height: 180px; }
+.lab-config p { line-height: 1.6; margin-bottom: 0; }
+.lab-result { padding: 14px 16px; border-left: 4px solid var(--teal); background: var(--teal-pale); line-height: 1.6; }
+.lab-bottom { margin-top: 24px; }
+.lab-bottom p { line-height: 1.65; }
+.lab-bottom > section > label { margin-bottom: 14px; }
+#lab-evaluation-result p { padding: 8px 0; border-top: 1px solid var(--line); }
+#lab-video { width: min(100%, 360px); margin-bottom: 16px; }
+@media (max-width: 800px) { .lab-pair, .lab-bottom { grid-template-columns: 1fr; } .lab-config-fields { gap: 8px; } .lab-actions { align-items: stretch; } }
