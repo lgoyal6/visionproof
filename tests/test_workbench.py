@@ -158,6 +158,18 @@ def test_public_replay_exports_only_static_sanitized_routes(qualified, tmp_path)
     assert 'public-config.js' in (out / 'index.html').read_text()
 
 
+def test_public_export_excludes_private_comparison_results(qualified, tmp_path):
+    from opencv_deploy_proof.comparison import compare
+    from opencv_deploy_proof.public_demo import export_public
+    root, path = qualified
+    compare(path, {'baseline': {}, 'candidate': {}}, root / 'private-comparison', rounds=3, repeats=3,
+            provenance={'private_upload': True})
+    out = tmp_path / 'public'
+    export_public(root, out, ['run'], 'run')
+    routes = json.loads((out / 'public-config.js').read_text().removeprefix('window.VISIONPROOF_PUBLIC = ').removesuffix(';\n'))['routes']
+    data = json.loads((out / routes['/api/comparisons'].lstrip('/')).read_text())
+    assert 'private-comparison' not in [c['id'] for c in data['comparisons']]
+    assert not any('private-comparison' in r for r in routes)
 
 
 def test_comparison_download_leads_with_corrected_scope(http_server, qualified):

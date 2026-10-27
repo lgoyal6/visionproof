@@ -40,6 +40,7 @@ def export_public(root: Path, out: Path, runs: list[str], default_run: str):
     items = [verify_run(root / name) for name in runs]
     studies = [verify_comparison(p) for p in sorted(root.iterdir())
                if p.is_dir() and (p / 'comparison.json').exists()]
+    studies = [s for s in studies if not s['contract'].get('provenance', {}).get('private_upload')]
     out.mkdir(parents=True, exist_ok=True)
     (out / 'data').mkdir()
     routes = {}
@@ -101,7 +102,7 @@ def export_public(root: Path, out: Path, runs: list[str], default_run: str):
     write('/api/comparisons', {'comparisons': comparisons})
     write('/api/cloud', cloud_report(root))
     static = Path(__file__).parent / 'static'
-    for name in ('app.css', 'app.js', 'about.html'):
+    for name in ('app.css', 'app.js', 'lab.js', 'about.html'):
         shutil.copy2(static / name, out / name)
     html = (static / 'index.html').read_text().replace('<script defer src="/app.js">',
         '<script src="/public-config.js"></script>\n    <script defer src="/app.js">')
