@@ -290,3 +290,46 @@ class LiveWorkbench:
                 'scope': 'Single warm image preview, not a batch latency qualification. Workers apply to batches. '
                          + ('Labels available for accuracy scoring.' if labels is not None else
                             'No labels: prediction differences do not establish accuracy. Frames are not saved.')}
+
+    def start(self, value):
+        if set(value) != {'dataset', 'baseline', 'candidate', 'requirements'}:
+            raise ValueError('declare dataset, two configurations and quality limits')
+        manifest, _, _ = self.dataset(value['dataset'])
+        configs = {name: configuration(value[name]).to_dict() for name in ('baseline', 'candidate')}
+        limits = requirements(value['requirements'])
+        if not self.execution_lock.acquire(blocking=False):
+            raise RuntimeError('another evaluation is running; try again after it finishes')
+        identifier = 'live-check-' + uuid.uuid4().hex[:12]
+        with self.lock:
+            self.jobs[identifier] = {'id': identifier, 'status': 'running', 'dataset': value['dataset']}
+
+        def run():
+            try:
+                result = compare(manifest, configs, self.root / identifier, rounds=3, repeats=3,
+                                 provenance={'private_upload': True, 'mode': 'user-fixed-configurations'}, requirements=limits)
+                with self.lock:
+                    self.jobs[identifier].update(status='completed', passed=result['rows'][1]['gate']['passed'],
+                                                 report=result)
+            except Exception as error:
+                with self.lock:
+                    self.jobs[identifier].update(status='failed', error=str(error) if isinstance(error, ValueError) else type(error).__name__)
+            finally:
+                self.execution_lock.release()
+        try:
+            Thread(target=run, daemon=True).start()
+        except Exception:
+            self.execution_lock.release()
+            raise
+        return self.status(identifier)
+
+    def status(self, identifier):
+        with self.lock:
+            if identifier not in self.jobs:
+                # Finished comparisons remain usable after a server restart.
+                if not isinstance(identifier, str) or not identifier.startswith('live-check-') or not identifier[11:].isalnum():
+                    raise ValueError('unknown evaluation')
+                if not (self.root / identifier / 'comparison.json').is_file():
+                    raise ValueError('unknown or incomplete evaluation')
+                result = verify_comparison(self.root / identifier)['report']
+                return {'id': identifier, 'status': 'completed', 'passed': result['rows'][1]['gate']['passed'], 'report': result}
+            return dict(self.jobs[identifier])

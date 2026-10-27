@@ -30,13 +30,11 @@ def archive(value, extra=None, suffix='.png'):
     return output.getvalue()
 
 
-
 @pytest.fixture
 def coco():
     return {'images': [{'id': 1, 'file_name': 'images/a.png', 'width': 16, 'height': 12}],
             'categories': [{'id': 1, 'name': 'person'}],
             'annotations': [{'id': 1, 'image_id': 1, 'category_id': 1, 'bbox': [3, 2, 6, 6]}]}
-
 
 
 @pytest.fixture
@@ -52,7 +50,6 @@ def imported(coco, tmp_path, monkeypatch):
     return tmp_path, model, identifier, manifest
 
 
-
 def test_import_normalizes_coco_and_preserves_original_input(imported, coco):
     root, _, identifier, manifest = imported
     value = load_manifest(manifest)
@@ -62,7 +59,6 @@ def test_import_normalizes_coco_and_preserves_original_input(imported, coco):
     assert (manifest.parent / row['label']).read_text() == '3 2 9 8 1'
     assert (manifest.parent / 'upload.zip').is_file()
     assert not (root / 'images').exists()
-
 
 
 @pytest.mark.parametrize('change', ['outside', 'crowd', 'duplicate', 'unknown-image', 'category', 'no-person', 'dimensions'])
@@ -81,7 +77,6 @@ def test_import_refuses_invalid_annotations(imported, coco, change):
     assert set((root / 'imports').iterdir()) == before
 
 
-
 def test_import_rejects_path_traversal_and_invalid_archive(imported, coco):
     root, model, _, _ = imported
     with pytest.raises(ValueError, match='unsafe'):
@@ -89,7 +84,6 @@ def test_import_rejects_path_traversal_and_invalid_archive(imported, coco):
     with pytest.raises(ValueError, match='ZIP'):
         live.import_coco(b'not a zip', root, model, 'bad')
     assert not (root.parent / 'escape.txt').exists()
-
 
 
 def test_images_are_bounded_before_decode_and_jpeg_is_supported():
@@ -104,11 +98,9 @@ def test_images_are_bounded_before_decode_and_jpeg_is_supported():
         live.decode_base64('invalid===', 100)
 
 
-
 def detector(image, models, config):
     assert image.shape == (12, 16) and image[3, 4] == 255
     return {'boxes': [[3, 2, 9, 8]] if config.input_size == 320 else [], 'stages_ms': {'dnn_forward': 1}}
-
 
 
 def test_preview_uses_same_pixels_and_keeps_unlabeled_disagreement_separate(imported, monkeypatch):
@@ -127,3 +119,43 @@ def test_preview_uses_same_pixels_and_keeps_unlabeled_disagreement_separate(impo
     assert unlabeled['pixels_sha256'] == result['pixels_sha256']
     assert unlabeled['delta'] == {'baseline_only_predictions': 1}
     assert 'do not establish accuracy' in unlabeled['scope']
+
+
+def test_invalid_configuration_limits_and_overlapping_preview_are_rejected(imported):
+    root, _, identifier, manifest = imported
+    lock = Lock(); work = live.LiveWorkbench(root, lambda: {'existing': manifest}, lock)
+    for value in [{'workers': True}, {'input_size': 999}, {'workers': 4, 'threads': 4}, {'shell': 'id'}]:
+        with pytest.raises((TypeError, ValueError)):
+            live.configuration(value)
+    with pytest.raises(ValueError):
+        live.requirements({'max_recall_drop': float('nan'), 'max_precision_drop': 0, 'max_p95_ratio': 1})
+    lock.acquire()
+    try:
+        with pytest.raises(RuntimeError, match='another evaluation'):
+            work.preview({'dataset': identifier, 'id': '1', 'baseline': {}, 'candidate': {}})
+    finally:
+        lock.release()
+    with pytest.raises(ValueError, match='unknown'):
+        work.status('../../escape')
+
+
+def test_dataset_job_runs_scorer_freezes_limits_and_survives_restart(imported, monkeypatch):
+    from itertools import count
+    root, _, identifier, manifest = imported
+    monkeypatch.setattr(pedestrian, 'detect_people', detector)
+    clock = count()
+    monkeypatch.setattr(pedestrian, 'perf_counter', lambda: next(clock) / 1000)
+    work = live.LiveWorkbench(root, lambda: {'existing': manifest}, Lock())
+    job = work.start({'dataset': identifier, 'baseline': {}, 'candidate': {'input_size': 160},
+                      'requirements': {'max_recall_drop': 0, 'max_precision_drop': 0, 'max_p95_ratio': 1.25}})
+    for _ in range(500):
+        job = work.status(job['id'])
+        if job['status'] != 'running': break
+        time.sleep(.01)
+    assert job['status'] == 'completed', job
+    assert not job['passed']
+    assert job['report']['rows'][1]['lost_count'] == 1
+    assert job['report']['rows'][1]['gate']['requirements']['max_recall_drop'] == 0
+    assert not work.execution_lock.locked()
+    restarted = live.LiveWorkbench(root, lambda: {'existing': manifest}, Lock())
+    assert restarted.status(job['id'])['report'] == job['report']
