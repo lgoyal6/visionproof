@@ -2,6 +2,7 @@
 
 import json
 import mimetypes
+import zipfile
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from threading import Lock
@@ -59,6 +60,11 @@ def create_server(manifest_path: Path, run: Path, host='127.0.0.1', port=8765,
                     continue
         return items
 
+    from .live import LiveWorkbench, decode_base64, import_coco, MAX_ARCHIVE_BYTES
+    live = LiveWorkbench(root, lambda: {name: item['manifest_path'] for name, item in catalog().items()
+                         if item['contract'].get('pipeline') == 'pedestrian-yolox'
+                         and item['verdict']['holdout_gate']['passed']}, inference_lock)
+
     class Handler(BaseHTTPRequestHandler):
         def respond(self, data, kind='application/json', code=200, attachment=None):
             if not isinstance(data, bytes):
@@ -68,7 +74,7 @@ def create_server(manifest_path: Path, run: Path, host='127.0.0.1', port=8765,
             self.send_header('Content-Length', str(len(data)))
             self.send_header('Cache-Control', 'no-store')
             self.send_header('X-Content-Type-Options', 'nosniff')
-            self.send_header('Content-Security-Policy', "default-src 'self'; img-src 'self' data:; style-src 'self'; script-src 'self'; object-src 'none'; frame-ancestors 'none'")
+            self.send_header('Content-Security-Policy', "default-src 'self'; img-src 'self' data:; media-src 'self' blob:; style-src 'self'; script-src 'self'; object-src 'none'; frame-ancestors 'none'")
             if attachment:
                 self.send_header('Content-Disposition', 'attachment; filename="' + attachment + '"')
             self.end_headers()
@@ -93,7 +99,7 @@ def create_server(manifest_path: Path, run: Path, host='127.0.0.1', port=8765,
             parsed = urlparse(self.path)
             query = parse_qs(parsed.query)
             path = parsed.path
-            if path in ('/', '/app.css', '/app.js'):
+            if path in ('/', '/app.css', '/app.js', '/lab.js'):
                 name = 'index.html' if path == '/' else path[1:]
                 return self.respond((static / name).read_bytes(), mimetypes.guess_type(name)[0] + '; charset=utf-8')
             if path == '/favicon.ico':
@@ -108,6 +114,14 @@ def create_server(manifest_path: Path, run: Path, host='127.0.0.1', port=8765,
                     'scope': 'Saved experiments and real local inference. AWS results are recorded benchmarks.'})
             if path == '/api/cloud':
                 return self.respond(cloud_report(root))
+            if path == '/api/lab/catalog':
+                return self.respond(live.catalog())
+            if path == '/api/lab/images':
+                return self.respond(live.images(query.get('dataset', [''])[0]))
+            if path == '/api/lab/pixels':
+                return self.respond(live.image(query.get('dataset', [''])[0], query.get('id', [''])[0]), 'image/png')
+            if path == '/api/lab/job':
+                return self.respond(live.status(query.get('id', [''])[0]))
             if path in ('/api/comparisons', '/api/comparison-export', '/api/comparison-pixels'):
                 from .comparison import verify_comparison
                 directories = {p.name: p for p in root.iterdir()
@@ -219,23 +233,39 @@ def create_server(manifest_path: Path, run: Path, host='127.0.0.1', port=8765,
             expected = {'http://127.0.0.1:' + str(self.server.server_port), 'http://localhost:' + str(self.server.server_port)}
             if not self.trusted() or origin not in expected:
                 return self.respond({'error': 'same-origin request required'}, code=403)
-            if self.path != '/api/jobs':
+            if self.path not in ('/api/jobs', '/api/lab/compare', '/api/lab/import', '/api/lab/evaluate'):
                 return self.respond({'error': 'not found'}, code=404)
             if self.headers.get('Content-Type', '').split(';')[0] != 'application/json':
                 return self.respond({'error': 'application/json required'}, code=415)
             try:
                 length = int(self.headers.get('Content-Length', '0'))
-                if not 0 < length <= 4096:
-                    return self.respond({'error': 'request body must be 1..4096 bytes'}, code=413)
+                limit = 45 * 1024 * 1024 if self.path == '/api/lab/import' else 12 * 1024 * 1024 if self.path == '/api/lab/compare' else 4096
+                if not 0 < length <= limit:
+                    return self.respond({'error': 'request body exceeds this endpoint\'s size limit'}, code=413)
                 value = json.loads(self.rfile.read(length))
                 if not isinstance(value, dict):
                     raise ValueError('expected an object')
+                if self.path == '/api/lab/compare':
+                    return self.respond(live.preview(value))
+                if self.path == '/api/lab/evaluate':
+                    return self.respond(live.start(value), code=202)
+                if self.path == '/api/lab/import':
+                    if set(value) != {'archive', 'name'} or not isinstance(value['name'], str):
+                        raise ValueError('provide a dataset name and ZIP archive')
+                    if not inference_lock.acquire(blocking=False):
+                        raise RuntimeError('another evaluation is running; import after it finishes')
+                    try:
+                        identifier = import_coco(decode_base64(value['archive'], MAX_ARCHIVE_BYTES), root,
+                                                 live.models(), value['name'])
+                    finally:
+                        inference_lock.release()
+                    return self.respond({'id': identifier}, code=201)
                 identifier = value.pop('run', run.name)
                 if not isinstance(identifier, str) or identifier not in catalog():
                     raise ValueError('unknown qualification run')
                 manifest = catalog()[identifier]['manifest_path']
                 self.respond(jobs.start(value, manifest), code=202)
-            except (ValueError, TypeError) as error:
+            except (ValueError, TypeError, KeyError, zipfile.BadZipFile) as error:
                 self.respond({'error': str(error)}, code=400)
             except RuntimeError as error:
                 self.respond({'error': str(error)}, code=409)

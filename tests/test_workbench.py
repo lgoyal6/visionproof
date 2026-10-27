@@ -158,6 +158,8 @@ def test_public_replay_exports_only_static_sanitized_routes(qualified, tmp_path)
     assert 'public-config.js' in (out / 'index.html').read_text()
 
 
+
+
 def test_comparison_download_leads_with_corrected_scope(http_server, qualified):
     from opencv_deploy_proof.comparison import compare, signed
     base, _ = http_server
@@ -224,6 +226,16 @@ def test_mutation_requires_same_origin_and_valid_bounded_options(http_server):
                                       (base, {'provider': 'shell', 'command': 'id'}, 400)]:
         request = urllib.request.Request(base + '/api/jobs', data=json.dumps(payload).encode(),
                                          headers={'Origin': origin, 'Content-Type': 'application/json'})
+        with pytest.raises(urllib.error.HTTPError) as error:
+            urllib.request.urlopen(request)
+        assert error.value.code == expected
+
+
+@pytest.mark.parametrize('route', ['/api/lab/import', '/api/lab/compare', '/api/lab/evaluate'])
+def test_live_endpoints_require_same_origin_and_reject_invalid_input(http_server, route):
+    base, _ = http_server
+    for origin, expected in [('https://evil.invalid', 403), (base, 400)]:
+        request = urllib.request.Request(base + route, data=b'{}', headers={'Origin': origin, 'Content-Type': 'application/json'})
         with pytest.raises(urllib.error.HTTPError) as error:
             urllib.request.urlopen(request)
         assert error.value.code == expected
