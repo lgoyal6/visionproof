@@ -1,0 +1,28 @@
+[build-system]
+requires = ["setuptools==80.9.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "opencv-deploy-proof"
+version = "0.1.0"
+description = "Evidence-driven qualification of an OpenCV inspection pipeline"
+license-files = ["NOTICE.md", "licenses/YOLOX-Apache-2.0.txt"]
+requires-python = ">=3.11,<3.14"
+dependencies = ["numpy==2.4.2", "opencv-python-headless==5.0.0.93"]
+
+[project.optional-dependencies]
+cloud = ["boto3==1.43.118", "botocore[crt]==1.43.118"]
+agent = ["anthropic==2.3.0"]
+test = ["pytest==9.0.2"]
+
+[project.scripts]
+vision-proof = "opencv_deploy_proof.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+opencv_deploy_proof = ["static/*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

@@ -1,0 +1,6 @@
+{
+  "input_size": 320,
+  "confidence": 0.3,
+  "workers": 4,
+  "threads": 1
+}
