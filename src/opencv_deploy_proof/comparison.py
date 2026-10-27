@@ -116,7 +116,8 @@ def markdown_report(report):
     return '\n'.join(lines)
 
 
-def compare(manifest: Path, configs: dict, out: Path, rounds=5, repeats=5, seed=1729, provenance=None):
+def compare(manifest: Path, configs: dict, out: Path, rounds=5, repeats=5, seed=1729, provenance=None,
+            requirements=None):
     if (type(rounds) is not int or not 3 <= rounds <= 30 or type(repeats) is not int
             or not 3 <= repeats <= 31 or type(seed) is not int):
         raise ValueError('rounds must be 3..30, repeats 3..31, seed an integer')
@@ -147,7 +148,7 @@ def compare(manifest: Path, configs: dict, out: Path, rounds=5, repeats=5, seed=
                        'configs': {k: v.to_dict() for k, v in configurations.items()},
                        'groups': {r['id']: r['group'] for r in test_rows},
                        'rounds': rounds, 'repeats': repeats, 'seed': seed, 'order': order[:rounds],
-                       'requirements': asdict(Requirements()), 'provenance': provenance or {},
+                       'requirements': asdict(requirements or Requirements()), 'provenance': provenance or {},
                        'protocol': data.get('limitations', [])})
     (out / 'comparison-contract.json').write_text(json.dumps(contract, indent=2))
     journal = out / 'comparison-events.jsonl'
