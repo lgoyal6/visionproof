@@ -11,6 +11,12 @@ The public endpoint is a read-only replay with illustrative image samples. It do
 inference or qualification jobs. The local app below runs both. Use **Guided demo** to inspect
 the recorded change that lost 559 baseline detections, then the passing change that retained them.
 
+## Architecture
+
+![VisionProof architecture: browser and Python server run both OpenCV 5 configurations locally; an independent evaluator and gate produce the evidence report; Amazon Bedrock proposes bounded settings; recorded EC2 x86, Graviton and COOL benchmarks; GitHub Actions runs the same check on pull requests](docs/architecture.png)
+
+Live measurements run locally with OpenCV 5. Amazon Bedrock only proposes bounded settings and cannot edit the evaluator. AWS EC2 x86, Graviton and COOL results are recorded evidence from short-lived workers. GitHub Actions runs `vision-proof check` on pull requests.
+
 An OpenCV qualification workbench for developers who need faster image processing without
 silently losing detections. An experiment planner proposes bounded changes to a PCB inspection
 pipeline. An independent evaluator checks recall, precision and warm batch latency before a
