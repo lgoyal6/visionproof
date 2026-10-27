@@ -2,26 +2,24 @@
 <html lang="en">
 <head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>VisionProof | Architecture and evidence</title><link rel="stylesheet" href="/app.css"></head>
 <body>
-<header class="topbar"><a class="brand" href="/"><strong>VisionProof</strong><span>OpenCV qualification workbench</span></a><a href="/">Open measured replay</a></header>
+<header class="topbar"><a class="brand" href="/"><strong>VisionProof</strong><span>OpenCV qualification workbench</span></a><a href="/">Open workbench</a></header>
 <main style="max-width:1100px;margin:auto;padding:40px 24px">
-<p>OPENCV AI COMPETITION 2026, POWERED BY AWS</p>
-<h1>Faster can mean blind.</h1>
-<p>Solo project by Laksh Goyal. Built for developers who need faster computer vision without silently losing detections.</p>
-<h2>From proposal to a running, measured workload</h2>
+<h1>Evaluate accuracy and speed.</h1>
+<p>Compare configurations, inspect missed detections and review pass or fail results.</p>
+<h2>Architecture</h2>
 <svg viewBox="0 0 1020 350" role="img" aria-label="Architecture: pinned images flow into OpenCV 5 evaluators. Bedrock proposes bounded configurations using development feedback. Frozen configurations go to independent test gates, then reports, CI and local inference. AWS comparisons run on x86 and Graviton with COOL.">
 <defs><marker id="arrow" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0 0 L8 4 L0 8" fill="#197b83"/></marker></defs>
 <g fill="#e5f2f1" stroke="#197b83" stroke-width="2"><rect x="5" y="115" width="185" height="100" rx="10"/><rect x="250" y="5" width="230" height="80" rx="10"/><rect x="250" y="115" width="230" height="100" rx="10"/><rect x="545" y="115" width="215" height="100" rx="10"/><rect x="815" y="115" width="200" height="100" rx="10"/><rect x="250" y="270" width="510" height="75" rx="10"/></g>
 <g fill="#193348" font-family="sans-serif" font-size="18" text-anchor="middle"><text x="98" y="153">Pinned images</text><text x="98" y="183">and annotations</text><text x="365" y="36">Amazon Bedrock</text><text x="365" y="62">bounded planner</text><text x="365" y="148">OpenCV 5 evaluator</text><text x="365" y="175">PCB pairs / DNN YOLOX</text><text x="365" y="200" font-size="15">Development feedback loop</text><text x="653" y="149">Freeze configuration</text><text x="653" y="177">Independent test gate</text><text x="653" y="201" font-size="15">Recall, precision, warm p95</text><text x="915" y="149">Pass or block</text><text x="915" y="177">Reports / CI</text><text x="915" y="200" font-size="15">Local inference preview</text><text x="505" y="301">Historical AWS EC2 workload comparisons</text><text x="505" y="328">x86 pip / Graviton pip / Graviton COOL</text></g>
 <g stroke="#197b83" stroke-width="3" fill="none" marker-end="url(#arrow)"><path d="M190 165 H244"/><path d="M480 165 H539"/><path d="M760 165 H809"/><path d="M342 87 V108"/><path d="M388 114 V91"/><path d="M365 218 V264"/></g>
 </svg>
-<p>Models receive development diagnostics and propose one allowed parameter change. The evaluator executes real OpenCV workloads. The selected configuration is frozen before test evaluation. A failed quality gate cannot be overridden by a speed improvement. The deterministic controller is labeled separately.</p>
+<p>Bedrock proposes configuration changes using development results. OpenCV runs the evaluations. The selected configuration is frozen before separate test evaluation, where recall, precision and latency determine whether it passes.</p>
 <h2>Measured results and limits</h2>
 <p>A reduced-resolution PCB configuration lost 559 baseline detections and returned CI exit 2. Four workers preserved detections and passed. On 48 pedestrian test images, four workers preserved TP138/FP41/FN1 and recorded a 3.13x median paired speedup, with a 95% interval of 2.53-3.40x.</p>
 <p>The 166 fresh PCB images come from three boards with earlier baseline calibration exposure. They are not unseen boards. Bedrock versus the fixed sweep had an interval including parity, and the sweep had better quality. We do not claim an LLM search advantage. AWS library builds differed, so the observed COOL comparison does not isolate COOL's effect.</p>
 <h2>Demo video</h2><video controls preload="metadata" width="100%" src="/demo.mp4">Use the demo video link.</video>
 <p><a href="/demo.mp4">Download the demonstration</a> · <a href="https://github.com/lgoyal6/visionproof/tree/build/core-proof">Source, reproduction and CI</a> · <a href="/">Inspect the replay</a></p>
 <h2>Scope and attribution</h2>
-<p>This hosted site is a read-only replay, with a small set of illustrative image samples. It cannot run inference, call models or launch cloud workers. The source repository provides the working local app and reproduction commands. Record digests identify original evidence; public JSON is a sanitized projection.</p>
+<p>This site shows recorded results and sample images. Metrics cover the full registered test sets. Fresh inference and evaluation run in the local app. Public exports omit private paths; hashes refer to the original evidence.</p>
 <p>DeepPCB: <a href="https://github.com/tangsanli5201/DeepPCB">Tang et al., MIT-licensed dataset</a>. Penn-Fudan: <a href="https://www.cis.upenn.edu/~jshi/ped_html/">Liming Wang, Jianbo Shi, Gang Song and I-fan Shen, research dataset</a>. Images retain their original rights. YOLOX: <a href="https://github.com/opencv/opencv_zoo/tree/48b10fa505aeb51fbd127fc60a5c660040e823b7/models/object_detection_yolox">OpenCV Zoo, Apache 2.0</a>. Model weights and full datasets are downloaded separately.</p>
-<p>This prototype is not qualified for safety-critical inspection, surveillance or autonomous decisions. Evaluation is limited to the registered benchmarks. AWS cleanup is a historical verification record; no zero-cost promise is made.</p>
 </main></body></html>
