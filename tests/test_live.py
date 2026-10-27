@@ -102,3 +102,28 @@ def test_images_are_bounded_before_decode_and_jpeg_is_supported():
         live.decode_image(huge)
     with pytest.raises(ValueError):
         live.decode_base64('invalid===', 100)
+
+
+
+def detector(image, models, config):
+    assert image.shape == (12, 16) and image[3, 4] == 255
+    return {'boxes': [[3, 2, 9, 8]] if config.input_size == 320 else [], 'stages_ms': {'dnn_forward': 1}}
+
+
+
+def test_preview_uses_same_pixels_and_keeps_unlabeled_disagreement_separate(imported, monkeypatch):
+    root, model, identifier, manifest = imported
+    monkeypatch.setattr(live, 'detect_people', detector)
+    work = live.LiveWorkbench(root, lambda: {'existing': manifest}, Lock())
+    value = {'dataset': identifier, 'id': '1', 'baseline': {}, 'candidate': {'input_size': 160}}
+    result = work.preview(value)
+    assert result['baseline']['quality']['tp'] == 1
+    assert result['candidate']['quality']['fn'] == 1
+    assert result['delta']['newly_missed_annotations'] == [0]
+    assert 'passed' not in result
+    image_bytes = work.image(identifier, '1')
+    unlabeled = work.preview({'frame': base64.b64encode(image_bytes).decode(), 'baseline': {}, 'candidate': {'input_size': 160}})
+    assert unlabeled['labels'] is None and unlabeled['candidate']['quality'] is None
+    assert unlabeled['pixels_sha256'] == result['pixels_sha256']
+    assert unlabeled['delta'] == {'baseline_only_predictions': 1}
+    assert 'do not establish accuracy' in unlabeled['scope']

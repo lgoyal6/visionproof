@@ -206,3 +206,87 @@ def import_coco(raw, root: Path, model_root: Path, name):
     except Exception:
         shutil.rmtree(directory)
         raise
+
+
+class LiveWorkbench:
+    def __init__(self, root, registered, execution_lock):
+        self.root, self.registered, self.execution_lock = root, registered, execution_lock
+        self.lock, self.jobs = Lock(), {}
+
+    def models(self):
+        for manifest in self.registered().values():
+            model_root = manifest.parent / 'models'
+            verify_models(model_root)
+            return model_root
+        raise ValueError('a qualified pedestrian run and pinned YOLOX model are required')
+
+    def datasets(self):
+        values = dict(self.registered())
+        values.update({p.parent.name: p for p in (self.root / 'imports').glob('import-*/manifest.json')})
+        return values
+
+    def dataset(self, identifier):
+        if not isinstance(identifier, str) or identifier not in self.datasets():
+            raise ValueError('unknown dataset')
+        path = self.datasets()[identifier]
+        value = load_manifest(path)
+        return path, value, [r for r in value['records'] if r['split'] == 'test']
+
+    def catalog(self):
+        summaries = []
+        for identifier in self.datasets():
+            _, value, rows = self.dataset(identifier)
+            summaries.append({'id': identifier, 'name': value.get('name') or identifier,
+                              'image_count': len(rows), 'private': bool(value.get('private_upload'))})
+        return {'datasets': summaries, 'pipeline': 'pedestrian-yolox'}
+
+    def images(self, identifier):
+        path, _, rows = self.dataset(identifier)
+        return {'images': [{'id': r['id'], 'labels': [[int(x) for x in line.split()] for line in
+                           (path.parent / r['label']).read_text().splitlines() if line.strip()]} for r in rows]}
+
+    def image(self, identifier, image_id):
+        path, _, rows = self.dataset(identifier)
+        row = next((r for r in rows if r['id'] == image_id), None)
+        if row is None:
+            raise ValueError('unknown image')
+        return (path.parent / row['image']).read_bytes()
+
+    def preview(self, value):
+        if set(value) - {'dataset', 'id', 'frame', 'baseline', 'candidate'}:
+            raise ValueError('unknown comparison option')
+        baseline, candidate = configuration(value.get('baseline', {})), configuration(value.get('candidate', {}))
+        labels = None
+        if 'frame' in value:
+            if 'dataset' in value or 'id' in value:
+                raise ValueError('choose a frame or a dataset image')
+            image = decode_image(decode_base64(value['frame'], MAX_IMAGE_BYTES))
+            models = self.models()
+        else:
+            path, _, _ = self.dataset(value.get('dataset'))
+            image = decode_image(self.image(value['dataset'], value.get('id')))
+            labels = next(r['labels'] for r in self.images(value['dataset'])['images'] if r['id'] == value['id'])
+            models = path.parent / 'models'
+        if not self.execution_lock.acquire(blocking=False):
+            raise RuntimeError('another evaluation is running; try again after it finishes')
+        try:
+            results = {}
+            for name, config in [('baseline', baseline), ('candidate', candidate)]:
+                cv2.setNumThreads(config.threads)
+                detect_people(image, models, config)
+                start = perf_counter()
+                output = detect_people(image, models, config)
+                results[name] = {'config': config.to_dict(), 'boxes': output['boxes'],
+                                 'warm_image_ms': (perf_counter() - start) * 1000,
+                                 'quality': match(output['boxes'], labels) if labels is not None else None}
+        finally:
+            self.execution_lock.release()
+        left, right = results['baseline'], results['candidate']
+        delta = {'baseline_only_predictions': match(right['boxes'], [b + [1] for b in left['boxes']])['fn']}
+        if labels is not None:
+            delta['newly_missed_annotations'] = sorted(set(right['quality']['missed_indices']) - set(left['quality']['missed_indices']))
+        return {'kind': 'live-image-comparison', 'shape': list(image.shape), 'labels': labels,
+                'pixels_sha256': hashlib.sha256(image.tobytes()).hexdigest(), **results, 'delta': delta,
+                'scope': 'Single warm image preview, not a batch latency qualification. Workers apply to batches. '
+                         + ('Labels available for accuracy scoring.' if labels is not None else
+                            'No labels: prediction differences do not establish accuracy. Frames are not saved.')}
